@@ -8,6 +8,7 @@ no strict qw(subs refs);
 use FindBin;
 use lib ("$FindBin::RealBin/PerlLib");
 use File::Basename;
+use File::Copy;
 use Time::localtime;
 use Cwd;
 use Carp;
@@ -487,6 +488,12 @@ my $advanced_usage =  <<_ADVANCEDUSAGE_;
 #  --bowtie_components            :use bowtie2 to generate readsToTranscripts mappings
 #
 #
+#  Butterfly-related options:
+#
+#  --assembly_temp_directory <string>    :directory (presumably on the local file system instead of shared)
+#                                         for recursive Trinity runs while assembling clusters of reads
+#
+#
 #  Other:
 #  --monitoring                    :use collectl to monitor all steps of Trinity
 #  
@@ -527,6 +534,9 @@ my $JELLY_S;
 
 my $PASAFLY_MODE = 0;
 my $CUFFFLY_MODE = 0;
+
+my $assembly_temp_directory;
+my $butterfly_output_filename;
 
 my $full_usage_info_flag;
 
@@ -622,6 +632,9 @@ my $NO_VERSION_CHECK = 0;
     
     'PasaFly' => \$PASAFLY_MODE,
     'CuffFly' => \$CUFFFLY_MODE,
+
+    'assembly_temp_directory=s' => \$assembly_temp_directory,
+    'butterfly_output_filename=s' => \$butterfly_output_filename,
 
     # Inchworm & kmer catalog opts
 
@@ -734,6 +747,8 @@ max_diffs_same_path
 max_internal_gap_same_path
 PasaFly
 CuffFly
+assembly_temp_directory
+butterfly_output_filename
 min_kmer_cov
 inchworm_cpu
 FORCE_INCHWORM_KMER_METHOD
@@ -1025,7 +1040,9 @@ my $MKDIR_OUTDIR_FLAG = 0; ## only purging output_directory if we create it in t
 
 
 ## Regular run.  Name the output based on the butterfly reconstruction mode.
-my $butterfly_output_filename = "Trinity.fasta";
+unless ($butterfly_output_filename) {
+    $butterfly_output_filename = "Trinity.fasta";
+}
 if ($PASAFLY_MODE) {
     $butterfly_output_filename = "Trinity.Pasafly.fasta";
 }
@@ -1214,52 +1231,28 @@ main: {
     }
     
     
+    if (-s "Trinity.fasta.tmp") {
+        move("Trinity.fasta.tmp", $butterfly_output_filename) or die "Error, cannot rename Trinity.fasta.tmp to $butterfly_output_filename"; # now that process has finished.
+
+        print "\n\n"
+            . "###################################################################\n"
+            . "Butterfly assemblies are written to $output_directory/$butterfly_output_filename\n"
+            . "###################################################################\n\n\n" unless $TRINITY_COMPLETE_FLAG;
+    }
+    else {
+        die "ERROR, no butterfly assemblies reported." unless $TRINITY_COMPLETE_FLAG;
+    }
+        
     if ($FULL_CLEANUP) {
         print "Fully cleaning up.\n" if $VERBOSE;
-        $output_directory =~ s|/+$||g; # remove any trailing directory slash
-    
-        if (-s "Trinity.fasta.tmp") {
-            rename("Trinity.fasta.tmp", "$output_directory.Trinity.fasta") or die "Error, cannot rename Trinity.fasta.tmp to $output_directory.Trinity.fasta";
-            
-            print "\n\n"
-                . "###################################################################\n"
-                . "Butterfly assemblies are written to $output_directory.Trinity.fasta\n"
-                . "###################################################################\n\n\n" unless $TRINITY_COMPLETE_FLAG;
-            
-        }
-        else {
-            print "# No butterfly assemblies to report.\n" unless $TRINITY_COMPLETE_FLAG;
-        }
-        
         if ($MKDIR_OUTDIR_FLAG && basename($output_directory) =~ /trinity/i) { # ensure outdirectory as trinity in the name, just to be sure we dont delete something non-trinity related!!!
             system("rm -rf $output_directory &"); # ignore filesystem errors on failed cleanup
         }
         else {
             print STDERR "WARNING, cannot remove output directory $output_directory, since not created in this run. (safety precaution)\n";
         }
-        
     }
-    else {
-        
-        
-        if (-s "Trinity.fasta.tmp") {
-            rename("Trinity.fasta.tmp", $butterfly_output_filename) or die "Error, cannot rename Trinity.fasta.tmp to $butterfly_output_filename"; # now that process has finished.
-        }
-        
-        if (-s $butterfly_output_filename) {
-            
-            print "\n\n";
-            print "###################################################################\n";
-            print "Butterfly assemblies are written to $output_directory/$butterfly_output_filename\n";
-            print "###################################################################\n\n\n" unless $TRINITY_COMPLETE_FLAG;
-        }
-        else {
-            
-            die "ERROR, no butterfly assemblies reported." unless $TRINITY_COMPLETE_FLAG;
-        }
-        
-    }
-    
+
     &perfmon_end() unless ($TRINITY_COMPLETE_FLAG || $FULL_CLEANUP);
 
     exit(0);
@@ -2852,7 +2845,11 @@ sub write_trinity_partitioned_cmds {
     else {
         $cmd .= " --full_cleanup ";
     }
-   
+
+    if ($assembly_temp_directory) {
+        $cmd .= " --assembly_temp_directory \"$assembly_temp_directory\" ";
+    }
+
     my @potential_args = @ORIG_ARGS;
 
     while (@potential_args) {
@@ -2864,7 +2861,7 @@ sub write_trinity_partitioned_cmds {
         }
         
         # value specified options that aren't needed
-        if ($arg =~ /seqType|left|right|single|genome|SS_lib_type|quality_trimming|output|normalize_max_read_cov|grid_conf|max_mem|grid|long_reads|inchworm_cpu/
+        if ($arg =~ /seqType|left|right|single|genome|SS_lib_type|quality_trimming|output|normalize_max_read_cov|grid_conf|max_mem|grid|long_reads|inchworm_cpu|assembly_temp_directory/
             ||
             # more precise identification of parameter
             $arg =~ /^(--CPU)$/
