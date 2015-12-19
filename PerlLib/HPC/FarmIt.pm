@@ -270,7 +270,8 @@ sub _submit_job {
         print $fh "## Command index $next_cmd_index\n"
             . "touch $monitor_started\n"
             . "$cmd_string\n"
-            . 'echo $? >> ' . "$retval_subdir/entry_$next_cmd_index.ret\n\n";
+            . 'retval=$?' . "\n"
+            . '[ $retval -ne 0 ] && echo $retval >> ' . "$retval_subdir/entry_$next_cmd_index.ret\n\n";
         
         $num_cmds_launched++;
         $num_cmds_written++;
@@ -417,27 +418,28 @@ sub _wait_for_completions {
                 my $all_OK = 1;
                 foreach my $cmd_index (@cmd_indices) {
                     my $retval_file = $self->_get_ret_filename($cmd_index);
+                    my $cmd_OK = 1;
                     if (-s $retval_file) {
                         open (my $fh, $retval_file) or die $!;
                         my $retval_string = <$fh>;
                         $retval_string =~ s/\s//g;
                         $self->{retvalues}->[$cmd_index] = $retval_string;
+                        if ($retval_string != 0) {
+                                $cmd_OK = 0;
+                        }
                         close $fh;
-                        # write success if success
-                        if ($retval_string == 0) {
-                            # command succeeded.
-                            if (my $ofh = $self->{cache_success_cmds_ofh}) {
-                                my $cmd = $self->{cmds_list}->[$cmd_index];
-                                print $ofh "$cmd\n";
-                            }
-                        }
-                        else {
-                            # at least one failure
-                            $all_OK = 0;
-                        }
                         unlink($retval_file); # house cleaning
+                    }
+                    if ($cmd_OK) {
+                        # command succeeded (retval_file wasn't created or retvalue was 0 in it)
+                        if (my $ofh = $self->{cache_success_cmds_ofh}) {
+                            my $cmd = $self->{cmds_list}->[$cmd_index];
+                            print $ofh "$cmd\n";
+                        }
+                        $self->{retvalues}->[$cmd_index] = 0;
                     } else {
-                        $self->{retvalues}->[$cmd_index] = "FILE_NOT_EXISTS";
+                        # at least one failure
+                        $all_OK = 0;
                     }
                 }
                 

@@ -2802,6 +2802,8 @@ sub run_partitioned_cmds {
 
     ## Execute the commands:
     if ($grid_conf_file) {
+        print STDERR &mytime."Using grid...\n";
+
         my @cmds = `cat $cmds_file`;
         chomp @cmds;
         
