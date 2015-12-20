@@ -249,7 +249,7 @@ sub _submit_job {
     
     my $num_cmds_written = 0;
 
-    my $monitor_started = "$monitor_dir/$num_cmds_launched.started";
+    # my $monitor_started = "$monitor_dir/$num_cmds_launched.started";
     my $monitor_finished = "$monitor_dir/$num_cmds_launched.finished";
 
     my @cmd_indices_prepped;
@@ -268,7 +268,7 @@ sub _submit_job {
 		}
 
         print $fh "## Command index $next_cmd_index\n"
-            . "touch $monitor_started\n"
+            # . "touch $monitor_started\n"
             . "$cmd_string\n"
             . 'retval=$?' . "\n"
             . '[ $retval -ne 0 ] && echo $retval >> ' . "$retval_subdir/entry_$next_cmd_index.ret\n\n";
@@ -278,7 +278,7 @@ sub _submit_job {
     }
     
     print $fh "\n" 
-        . "rm -f $monitor_started\n"
+        # . "rm -f $monitor_started\n"
         . "touch $monitor_finished\n"
         . "\n" 
         . "exit 0\n\n";
@@ -525,8 +525,8 @@ sub _write_minimal_environment {
 
 ## add any special environment settings
 
-echo HOST: \$HOSTNAME
-echo HOST: \$HOSTNAME >&2
+# echo HOST: \$HOSTNAME
+# echo HOST: \$HOSTNAME >&2
 
 _EOFENV_
 
