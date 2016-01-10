@@ -1041,7 +1041,13 @@ my $MKDIR_OUTDIR_FLAG = 0; ## only purging output_directory if we create it in t
 
 ## Regular run.  Name the output based on the butterfly reconstruction mode.
 unless ($butterfly_output_filename) {
-    $butterfly_output_filename = "Trinity.fasta";
+    if ($FULL_CLEANUP) {
+        ## in case of FULL_CLEANUP place the result at the same level as output directory
+        $output_directory =~ s|/+$||g; # remove any trailing directory slash
+        $butterfly_output_filename = "$output_directory.Trinity.fasta";
+    } else {
+        $butterfly_output_filename = "Trinity.fasta";
+    }
 }
 if ($PASAFLY_MODE) {
     $butterfly_output_filename = "Trinity.Pasafly.fasta";
@@ -1232,11 +1238,11 @@ main: {
     
     
     if (-s "Trinity.fasta.tmp") {
-        move("Trinity.fasta.tmp", $butterfly_output_filename) or die "Error, cannot rename Trinity.fasta.tmp to $butterfly_output_filename"; # now that process has finished.
+        move("Trinity.fasta.tmp", $butterfly_output_filename) or die "Error, cannot move Trinity.fasta.tmp to $butterfly_output_filename"; # now that process has finished.
 
         print "\n\n"
             . "###################################################################\n"
-            . "Butterfly assemblies are written to $output_directory/$butterfly_output_filename\n"
+            . "Butterfly assemblies are written to $butterfly_output_filename\n"
             . "###################################################################\n\n\n" unless $TRINITY_COMPLETE_FLAG;
     }
     else {
